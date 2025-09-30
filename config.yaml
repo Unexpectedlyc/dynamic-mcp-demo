@@ -1,0 +1,30 @@
+server:
+  ip: localhost # When transport is set to http or sse, the IP must be configured
+  port: 8080 # When transport is set to http or sse, the port must be configured
+  transport: sse # Transport options: stdio, sse, http
+tools:
+  - name: get_weather
+    description: 获取指定城市的天气信息
+    method: GET
+    url: https://api.example.com/weather
+    query_params:
+      city: str
+    timeout: 10
+
+  - name: create_user
+    description: 创建新用户
+    method: POST
+    url: https://api.example.com/users
+    body_params:
+      name: str
+      email: str
+      age: int
+    timeout: 15
+
+  - name: get_stock_price
+    description: 获取股票价格
+    method: GET
+    url: https://api.example.com/stocks/{symbol}
+    path_params:
+      symbol: str
+    timeout: 5
