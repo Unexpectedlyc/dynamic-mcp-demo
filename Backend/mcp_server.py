@@ -1,10 +1,12 @@
+from pdb import run
 from utils import load_config
-from register_tool import mcp, register_all_tools
+from Backend.register_tool import mcp, register_all_tools
 
 config = load_config()
 register_all_tools()
 
-if __name__ == "__main__":
+
+def run_server():
     transport = config["server"]["transport"]
     host = config["server"]["ip"] or "localhost"
     port = config["server"]["port"] or 8080
@@ -18,3 +20,7 @@ if __name__ == "__main__":
         )
     else:
         raise ValueError(f"Invalid transport: {transport}")
+
+
+if __name__ == "__main__":
+    run_server()
