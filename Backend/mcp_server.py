@@ -2,11 +2,10 @@ from pdb import run
 from utils import load_config
 from Backend.register_tool import mcp, register_all_tools
 
-config = load_config()
-register_all_tools()
-
 
 def run_server():
+    config = load_config()
+    register_all_tools()
     transport = config["server"]["transport"]
     host = config["server"]["ip"] or "localhost"
     port = config["server"]["port"] or 8080

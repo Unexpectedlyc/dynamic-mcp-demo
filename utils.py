@@ -1,6 +1,11 @@
 import yaml
 from typing import Dict, Any
 import os
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
+from contextlib import AsyncExitStack
 
 
 def load_config(config_path: str = "config.yaml") -> Dict[Any, Any]:
@@ -26,6 +31,73 @@ def load_config(config_path: str = "config.yaml") -> Dict[Any, Any]:
             return config
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"配置文件解析错误: {e}")
+
+
+async def connect_to_stdio_server(server_script_path: str, exit_stack):
+    """Connect to an MCP server
+
+    Args:
+        server_script_path: Path to the server script (.py or .js)
+    """
+    is_python = server_script_path.endswith(".py")
+    is_js = server_script_path.endswith(".js")
+    if not (is_python or is_js):
+        raise ValueError("Server script must be a .py or .js file")
+
+    command = "python" if is_python else "node"
+    server_params = StdioServerParameters(
+        command=command, args=[server_script_path], env=None
+    )
+
+    stdio_transport = await exit_stack.enter_async_context(stdio_client(server_params))
+    stdio, write = stdio_transport
+    session = await exit_stack.enter_async_context(ClientSession(stdio, write))
+
+    return session
+
+
+async def connect_to_sse_server(url: str, exit_stack):
+    sse_transport = await exit_stack.enter_async_context(sse_client(url))
+    sse, write = sse_transport
+    session = await exit_stack.enter_async_context(ClientSession(sse, write))
+
+    return session
+
+
+async def connect_to_streamablehttp_server(url: str, exit_stack):
+    streamablehttp_transport = await exit_stack.enter_async_context(
+        streamablehttp_client(url)
+    )
+    streamablehttp, write = streamablehttp_transport
+    session = await exit_stack.enter_async_context(ClientSession(streamablehttp, write))
+
+    return session
+
+
+async def connect_to_server():
+    exit_stack = AsyncExitStack()
+    """Connect to an MCP server"""
+    config = load_config()
+    transport = config["server"]["transport"]
+    host = config["server"]["ip"] or "localhost"
+    port = config["server"]["port"] or 8000
+    if transport == "stdio":
+        server_script_path = "Backend/mcp_server.py"
+        session = await connect_to_stdio_server(server_script_path, exit_stack)
+    elif transport == "sse":
+        url = f"http://{host}:{port}/sse "
+        session = await connect_to_sse_server(url, exit_stack)
+    elif transport == "http":
+        url = f"http://{host}:{port}/mcp "
+        session = await connect_to_streamablehttp_server(url, exit_stack)
+    else:
+        raise ValueError("Invalid mcp_type")
+
+    await session.initialize()
+    # List available tools
+    response = await session.list_tools()
+    tools = response.tools
+    print("\nConnected to server with tools:", [tool.name for tool in tools])
 
 
 # 使用示例
