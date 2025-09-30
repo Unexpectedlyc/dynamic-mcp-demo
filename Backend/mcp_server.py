@@ -1,4 +1,3 @@
-from sympy import re
 from utils import load_config
 from register_tool import mcp, register_all_tools
 
