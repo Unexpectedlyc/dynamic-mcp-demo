@@ -1,4 +1,3 @@
-from pdb import run
 from utils import load_config
 from Backend.register_tool import mcp, register_all_tools
 
