@@ -98,6 +98,51 @@ async def connect_to_server():
     response = await session.list_tools()
     tools = response.tools
     print("\nConnected to server with tools:", [tool.name for tool in tools])
+    return tools
+
+
+async def execute_mcp_tool(tool, params=None):
+    """
+    执行指定的MCP工具
+    :param tool: MCP工具对象
+    :param params: 工具执行参数字典
+    :return: 执行结果
+    """
+    if params is None:
+        params = {}
+
+    # 重新建立连接以执行工具
+    # 注意：在生产环境中，您可能想要复用现有的连接
+    exit_stack = AsyncExitStack()
+    config = load_config()
+    transport = config["server"]["transport"]
+    host = config["server"]["ip"] or "localhost"
+    port = config["server"]["port"] or 8000
+
+    if transport == "stdio":
+        server_script_path = "Backend/mcp_server.py"
+        session = await connect_to_stdio_server(server_script_path, exit_stack)
+    elif transport == "sse":
+        url = f"http://{host}:{port}/sse"
+        session = await connect_to_sse_server(url, exit_stack)
+    elif transport == "http":
+        url = f"http://{host}:{port}/mcp"
+        session = await connect_to_streamablehttp_server(url, exit_stack)
+    else:
+        raise ValueError(f"不支持的传输协议: {transport}")
+
+    try:
+        await session.initialize()
+        # 执行MCP工具并返回结果
+        result = await session.call_tool(tool.name, params)
+        return result
+    except Exception as e:
+        error_message = f"执行工具 {tool.name} 失败: {str(e)}"
+        print(error_message)
+        raise Exception(error_message)
+    finally:
+        # 清理资源
+        await exit_stack.aclose()
 
 
 # 使用示例
