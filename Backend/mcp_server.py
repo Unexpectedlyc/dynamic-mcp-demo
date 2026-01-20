@@ -1,4 +1,4 @@
-from utils import load_config
+from utils.utils import load_config
 from Backend.register_tool import mcp, register_all_tools
 
 

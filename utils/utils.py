@@ -4,7 +4,7 @@ import os
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from contextlib import AsyncExitStack
 
 
@@ -66,7 +66,7 @@ async def connect_to_sse_server(url: str, exit_stack):
 
 async def connect_to_streamablehttp_server(url: str, exit_stack):
     streamablehttp_transport = await exit_stack.enter_async_context(
-        streamablehttp_client(url)
+        streamable_http_client(url)
     )
     streamablehttp, write = streamablehttp_transport
     session = await exit_stack.enter_async_context(ClientSession(streamablehttp, write))
@@ -85,10 +85,10 @@ async def connect_to_server():
         server_script_path = "Backend/mcp_server.py"
         session = await connect_to_stdio_server(server_script_path, exit_stack)
     elif transport == "sse":
-        url = f"http://{host}:{port}/sse "
+        url = f"http://{host}:{port}/sse"
         session = await connect_to_sse_server(url, exit_stack)
     elif transport == "http":
-        url = f"http://{host}:{port}/mcp "
+        url = f"http://{host}:{port}/mcp"
         session = await connect_to_streamablehttp_server(url, exit_stack)
     else:
         raise ValueError("Invalid mcp_type")
