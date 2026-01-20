@@ -2,12 +2,10 @@
 from fastmcp.tools import Tool
 import yaml
 import httpx
-from typing import Any, Dict, get_type_hints
+from typing import Any, Dict
 from fastmcp import FastMCP
-from pydantic import BaseModel, create_model
 import inspect
-import types
-from typing import get_type_hints
+
 
 # 初始化 FastMCP 应用
 mcp = FastMCP("HTTP Tool Proxy 🌐")
@@ -24,7 +22,7 @@ def create_tool_function(tool_config: Dict[str, Any]):
     url_template = tool_config["url"]
     timeout = tool_config.get("timeout", 10)
 
-    # 合并所有参数
+    # 获取参数信息
     all_params = {}
     all_params.update(tool_config.get("path_params", {}))
     all_params.update(tool_config.get("query_params", {}))
@@ -33,69 +31,59 @@ def create_tool_function(tool_config: Dict[str, Any]):
     if not all_params:
         raise ValueError(f"Tool '{name}' must have at least one parameter")
 
-    # 类型映射
     type_map = {"str": str, "int": int, "float": float, "bool": bool}
 
-    # 构建参数名和类型
-    param_names = list(all_params.keys())
-    param_types = [type_map[all_params[n]] for n in param_names]
-
-    # 构建函数体逻辑（闭包捕获配置）
-    def make_handler(tool_cfg, url_tmpl, meth, to):
-        def handler(*args):
-            # args 顺序与 param_names 一致
-            kwargs = dict(zip(param_names, args))
-
-            # 构建 URL
-            url = url_tmpl
-            for p in tool_cfg.get("path_params", {}):
+    # 创建带正确签名的函数
+    def make_http_request(**kwargs):
+        """Dynamically created HTTP request function"""
+        # 构建 URL
+        url = url_template
+        for p in tool_config.get("path_params", {}):
+            if p in kwargs:
                 url = url.replace(f"{{{p}}}", str(kwargs[p]))
 
-            query_params = {
-                k: kwargs[k] for k in tool_cfg.get("query_params", {}) if k in kwargs
-            }
-            body_params = {
-                k: kwargs[k] for k in tool_cfg.get("body_params", {}) if k in kwargs
-            }
+        query_params = {
+            k: kwargs[k] for k in tool_config.get("query_params", {}) if k in kwargs
+        }
+        body_params = {
+            k: kwargs[k] for k in tool_config.get("body_params", {}) if k in kwargs
+        }
 
-            with httpx.Client(timeout=to) as client:
-                if meth == "GET":
-                    resp = client.get(url, params=query_params)
-                elif meth == "POST":
-                    resp = client.post(url, params=query_params, json=body_params)
-                elif meth == "PUT":
-                    resp = client.put(url, params=query_params, json=body_params)
-                elif meth == "DELETE":
-                    resp = client.delete(url, params=query_params)
-                else:
-                    raise ValueError(f"Unsupported method: {meth}")
-                resp.raise_for_status()
-                return resp.text
+        with httpx.Client(timeout=timeout) as client:
+            if method == "GET":
+                resp = client.get(url, params=query_params)
+            elif method == "POST":
+                resp = client.post(url, params=query_params, json=body_params)
+            elif method == "PUT":
+                resp = client.put(url, params=query_params, json=body_params)
+            elif method == "DELETE":
+                resp = client.delete(url, params=query_params)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+            resp.raise_for_status()
+            return resp.text
 
-        return handler
+    # 创建参数注解
+    annotations = {"return": str}
+    for param_name, param_type_str in all_params.items():
+        annotations[param_name] = type_map[param_type_str]
 
-    # 创建函数对象，带固定参数签名
-    handler_func = make_handler(tool_config, url_template, method, timeout)
+    make_http_request.__name__ = name
+    make_http_request.__doc__ = tool_config["description"]
+    make_http_request.__annotations__ = annotations
 
-    # 手动设置函数名和文档
-    handler_func.__name__ = name
-    handler_func.__doc__ = tool_config["description"]
-
-    # 构建新的函数签名（无 *args/**kwargs）
+    # 创建正确的签名
     sig_params = [
         inspect.Parameter(
-            name=p_name, kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=p_type
+            name=param_name,
+            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=type_map[param_type_str],
         )
-        for p_name, p_type in zip(param_names, param_types)
+        for param_name, param_type_str in all_params.items()
     ]
-    new_sig = inspect.Signature(sig_params, return_annotation=str)
-    handler_func.__signature__ = new_sig
+    make_http_request.__signature__ = inspect.Signature(sig_params)
 
-    # 设置类型注解（用于 FastMCP 推断）
-    handler_func.__annotations__ = dict(zip(param_names, param_types))
-    handler_func.__annotations__["return"] = str
-
-    return handler_func
+    return make_http_request
 
 
 def register_all_tools():

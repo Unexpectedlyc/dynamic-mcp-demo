@@ -28,3 +28,11 @@ tools:
     path_params:
       symbol: str
     timeout: 5
+  - name: get_user_info
+    description: "Get user information by ID"
+    url: "https://api.example.com/users/{user_id}"
+    method: "GET"
+    path_params:
+      user_id: "int"
+    query_params:
+      include_profile: "bool"
